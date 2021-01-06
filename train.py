@@ -5,7 +5,7 @@ import torch.optim as optim
 import torch.backends.cudnn as cudnn
 import argparse
 import torch.utils.data as data
-from data import WiderFaceDetection, detection_collate, preproc, cfg_mnet, cfg_re50
+from data import WiderFaceDetection, detection_collate, preproc, cfg_mnet, cfg_re50, cfg_efb2, cfg_vov19
 from layers.modules import MultiBoxLoss
 from layers.functions.prior_box import PriorBox
 import time
@@ -15,7 +15,7 @@ from models.retinaface import RetinaFace
 
 parser = argparse.ArgumentParser(description='Retinaface Training')
 parser.add_argument('--training_dataset', default='./data/widerface/train/label.txt', help='Training dataset directory')
-parser.add_argument('--network', default='mobile0.25', help='Backbone network mobile0.25 or resnet50')
+parser.add_argument('--network', default='vovnet19b', help='Backbone network mobile0.25 or resnet50')
 parser.add_argument('--num_workers', default=4, type=int, help='Number of workers used in dataloading')
 parser.add_argument('--lr', '--learning-rate', default=1e-3, type=float, help='initial learning rate')
 parser.add_argument('--momentum', default=0.9, type=float, help='momentum')
@@ -34,6 +34,11 @@ if args.network == "mobile0.25":
     cfg = cfg_mnet
 elif args.network == "resnet50":
     cfg = cfg_re50
+elif args.network == "efficientb2":
+    cfg = cfg_efb2
+elif args.network == "vovnet19b":
+    cfg = cfg_vov19
+
 
 rgb_mean = (104, 117, 123) # bgr order
 num_classes = 2
@@ -73,7 +78,7 @@ if args.resume_net is not None:
 if num_gpu > 1 and gpu_train:
     net = torch.nn.DataParallel(net).cuda()
 else:
-    net = net.cuda()
+    net = net.cpu()
 
 cudnn.benchmark = True
 
@@ -84,7 +89,10 @@ criterion = MultiBoxLoss(num_classes, 0.35, True, 0, True, 7, 0.35, False)
 priorbox = PriorBox(cfg, image_size=(img_dim, img_dim))
 with torch.no_grad():
     priors = priorbox.forward()
-    priors = priors.cuda()
+    if num_gpu > 1 and gpu_train:
+        priors = priors.cuda()
+    else:
+        priors = priors.cpu()
 
 def train():
     net.train()
@@ -93,7 +101,7 @@ def train():
 
     dataset = WiderFaceDetection( training_dataset,preproc(img_dim, rgb_mean))
 
-    epoch_size = math.ceil(len(dataset) / batch_size)
+    epoch_size = math.ceil(len(dataset) / batch_size) # cantidad de batches
     max_iter = max_epoch * epoch_size
 
     stepvalues = (cfg['decay1'] * epoch_size, cfg['decay2'] * epoch_size)
@@ -119,8 +127,12 @@ def train():
 
         # load train data
         images, targets = next(batch_iterator)
-        images = images.cuda()
-        targets = [anno.cuda() for anno in targets]
+        if num_gpu > 1 and gpu_train:
+            images = images.cuda()
+            targets = [anno.cuda() for anno in targets]
+        else:
+            images = images.cpu()
+            targets = [anno.cpu() for anno in targets]
 
         # forward
         out = net(images)

@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-import torchvision.models.detection.backbone_utils as backbone_utils
+#import torchvision.models.detection.backbone_utils as backbone_utils
 import torchvision.models._utils as _utils
 import torch.nn.functional as F
 from collections import OrderedDict
@@ -65,19 +65,35 @@ class RetinaFace(nn.Module):
                     new_state_dict[name] = v
                 # load params
                 backbone.load_state_dict(new_state_dict)
+            self.body = _utils.IntermediateLayerGetter(backbone, cfg['return_layers'])
+
         elif cfg['name'] == 'Resnet50':
             import torchvision.models as models
             backbone = models.resnet50(pretrained=cfg['pretrain'])
+            self.body = _utils.IntermediateLayerGetter(backbone, cfg['return_layers'])
+            in_channels_stage2 = cfg['in_channel']
+            in_channels_list = [
+                in_channels_stage2 * 2,
+                in_channels_stage2 * 4,
+                in_channels_stage2 * 8,
+            ]
 
-        self.body = _utils.IntermediateLayerGetter(backbone, cfg['return_layers'])
-        in_channels_stage2 = cfg['in_channel']
-        in_channels_list = [
-            in_channels_stage2 * 2,
-            in_channels_stage2 * 4,
-            in_channels_stage2 * 8,
-        ]
+        elif cfg['name'] == 'efficientb2':
+            import timm
+            backbone = timm.create_model('tf_efficientnet_b2_ns', features_only=True, pretrained=True)
+            self.body = backbone
+
+            in_channels_list = [48, 120, 352]
+
+        elif cfg['name'] == 'vovnet19b':
+            import timm
+            backbone = timm.create_model('ese_vovnet19b_dw', features_only=True, pretrained=True)
+            self.body = backbone
+
+            in_channels_list = [512, 768, 1024]
+
         out_channels = cfg['out_channel']
-        self.fpn = FPN(in_channels_list,out_channels)
+        self.fpn = FPN(in_channels_list, out_channels)
         self.ssh1 = SSH(out_channels, out_channels)
         self.ssh2 = SSH(out_channels, out_channels)
         self.ssh3 = SSH(out_channels, out_channels)
@@ -106,6 +122,7 @@ class RetinaFace(nn.Module):
 
     def forward(self,inputs):
         out = self.body(inputs)
+        out = OrderedDict((i + 1, v) for (i, v) in enumerate(out[-3:]))
 
         # FPN
         fpn = self.fpn(out)

@@ -69,12 +69,14 @@ class MultiBoxLoss(nn.Module):
             landms = targets[idx][:, 4:14].data
             defaults = priors.data
             match(self.threshold, truths, defaults, self.variance, labels, landms, loc_t, conf_t, landm_t, idx)
+
+        zeros = torch.tensor(0)
         if GPU:
             loc_t = loc_t.cuda()
             conf_t = conf_t.cuda()
             landm_t = landm_t.cuda()
+            zeros = zeros.cuda()
 
-        zeros = torch.tensor(0).cuda()
         # landm Loss (Smooth L1)
         # Shape: [batch,num_priors,10]
         pos1 = conf_t > zeros
