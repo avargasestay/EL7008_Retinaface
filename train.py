@@ -15,7 +15,7 @@ from models.retinaface import RetinaFace
 
 parser = argparse.ArgumentParser(description='Retinaface Training')
 parser.add_argument('--training_dataset', default='./data/widerface/train/label.txt', help='Training dataset directory')
-parser.add_argument('--network', default='vovnet19b', help='Backbone network mobile0.25 or resnet50')
+parser.add_argument('--network', default='efficientb2', help='Backbone network mobile0.25 or resnet50')
 parser.add_argument('--num_workers', default=4, type=int, help='Number of workers used in dataloading')
 parser.add_argument('--lr', '--learning-rate', default=1e-3, type=float, help='initial learning rate')
 parser.add_argument('--momentum', default=0.9, type=float, help='momentum')
@@ -57,8 +57,13 @@ training_dataset = args.training_dataset
 save_folder = args.save_folder
 
 net = RetinaFace(cfg=cfg)
-print("Printing net...")
-print(net)
+
+if gpu_train:
+    print("Using GPU: ", torch.cuda.get_device_name(0))
+else:
+    print("Using CPU")
+#print("Printing net...")
+#print(net)
 
 if args.resume_net is not None:
     print('Loading resume network...')
@@ -75,7 +80,7 @@ if args.resume_net is not None:
         new_state_dict[name] = v
     net.load_state_dict(new_state_dict)
 
-if num_gpu > 1 and gpu_train:
+if num_gpu >= 1 and gpu_train:
     net = torch.nn.DataParallel(net).cuda()
 else:
     net = net.cpu()
@@ -84,12 +89,12 @@ cudnn.benchmark = True
 
 
 optimizer = optim.SGD(net.parameters(), lr=initial_lr, momentum=momentum, weight_decay=weight_decay)
-criterion = MultiBoxLoss(num_classes, 0.35, True, 0, True, 7, 0.35, False)
+criterion = MultiBoxLoss(num_classes, 0.35, True, 0, True, 7, 0.35, False, gpu_train)
 
 priorbox = PriorBox(cfg, image_size=(img_dim, img_dim))
 with torch.no_grad():
     priors = priorbox.forward()
-    if num_gpu > 1 and gpu_train:
+    if num_gpu >= 1 and gpu_train:
         priors = priors.cuda()
     else:
         priors = priors.cpu()
@@ -127,7 +132,7 @@ def train():
 
         # load train data
         images, targets = next(batch_iterator)
-        if num_gpu > 1 and gpu_train:
+        if num_gpu >= 1 and gpu_train:
             images = images.cuda()
             targets = [anno.cuda() for anno in targets]
         else:
