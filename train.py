@@ -1,8 +1,9 @@
 from __future__ import print_function
-import os
+import os, sys
 import torch
 import torch.optim as optim
 import torch.backends.cudnn as cudnn
+from adamp import AdamP, SGDP
 import argparse
 import torch.utils.data as data
 from data import WiderFaceDetection, detection_collate, preproc, cfg_mnet, cfg_re50, cfg_efb2, cfg_vov19
@@ -24,6 +25,7 @@ parser.add_argument('--resume_epoch', default=0, type=int, help='resume iter for
 parser.add_argument('--weight_decay', default=5e-4, type=float, help='Weight decay for SGD')
 parser.add_argument('--gamma', default=0.1, type=float, help='Gamma update for SGD')
 parser.add_argument('--save_folder', default='./weights/', help='Location to save checkpoint models')
+parser.add_argument('--optimizer', default='sgd', help='optimizer for train, sgd, sgdp, or admap')
 
 args = parser.parse_args()
 
@@ -87,8 +89,18 @@ else:
 
 cudnn.benchmark = True
 
+if args.optimizer == 'sgd':
+    optimizer = optim.SGD(net.parameters(), lr=initial_lr, momentum=momentum, weight_decay=weight_decay)
+    scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, max_epoch)
+elif args.optimizer == 'sgdp':
+    optimizer = SGDP(net.parameters(), lr=initial_lr, momentum=momentum, weight_decay=weight_decay)
+    scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, max_epoch)
+elif args.optimizer == 'adamp':
+    optimizer = AdamP(net.parameters(), lr=initial_lr, momentum=momentum, weight_decay=weight_decay)
+else:
+    print("Invalid optimizer!!")
+    raise ValueError
 
-optimizer = optim.SGD(net.parameters(), lr=initial_lr, momentum=momentum, weight_decay=weight_decay)
 criterion = MultiBoxLoss(num_classes, 0.35, True, 0, True, 7, 0.35, False, gpu_train)
 
 priorbox = PriorBox(cfg, image_size=(img_dim, img_dim))
@@ -104,13 +116,13 @@ def train():
     epoch = 0 + args.resume_epoch
     print('Loading Dataset...')
 
-    dataset = WiderFaceDetection( training_dataset,preproc(img_dim, rgb_mean))
+    dataset = WiderFaceDetection(training_dataset, preproc(img_dim, rgb_mean))
 
     epoch_size = math.ceil(len(dataset) / batch_size) # cantidad de batches
     max_iter = max_epoch * epoch_size
 
-    stepvalues = (cfg['decay1'] * epoch_size, cfg['decay2'] * epoch_size)
-    step_index = 0
+    #stepvalues = (cfg['decay1'] * epoch_size, cfg['decay2'] * epoch_size)
+    #step_index = 0
 
     if args.resume_epoch > 0:
         start_iter = args.resume_epoch * epoch_size
@@ -121,14 +133,17 @@ def train():
         if iteration % epoch_size == 0:
             # create batch iterator
             batch_iterator = iter(data.DataLoader(dataset, batch_size, shuffle=True, num_workers=num_workers, collate_fn=detection_collate))
-            if (epoch % 10 == 0 and epoch > 0) or (epoch % 5 == 0 and epoch > cfg['decay1']):
-                torch.save(net.state_dict(), save_folder + cfg['name']+ '_epoch_' + str(epoch) + '.pth')
+            if (epoch % 10 == 0 and epoch > 0): #or (epoch % 5 == 0 and epoch > cfg['decay1']):
+                torch.save(net.state_dict(), save_folder + cfg['name']+ '_optim_'+ args.optimizer +'_epoch_' + str(epoch) + '.pth')
             epoch += 1
+            if epoch > 1 and args.optimizer != 'adamp': scheduler.step() # cambia el lr
 
         load_t0 = time.time()
-        if iteration in stepvalues:
-            step_index += 1
-        lr = adjust_learning_rate(optimizer, gamma, epoch, step_index, iteration, epoch_size)
+        #if iteration in stepvalues:
+        #    step_index += 1
+
+        #lr = adjust_learning_rate(optimizer, gamma, epoch, step_index, iteration, epoch_size)
+        lr = optimizer.param_groups[0]['lr']
 
         # load train data
         images, targets = next(batch_iterator)
@@ -151,12 +166,16 @@ def train():
         load_t1 = time.time()
         batch_time = load_t1 - load_t0
         eta = int(batch_time * (max_iter - iteration))
-        print('Epoch:{}/{} || Epochiter: {}/{} || Iter: {}/{} || Loc: {:.4f} Cla: {:.4f} Landm: {:.4f} || LR: {:.8f} || Batchtime: {:.4f} s || ETA: {}'
-              .format(epoch, max_epoch, (iteration % epoch_size) + 1,
-              epoch_size, iteration + 1, max_iter, loss_l.item(), loss_c.item(), loss_landm.item(), lr, batch_time, str(datetime.timedelta(seconds=eta))))
-
-    torch.save(net.state_dict(), save_folder + cfg['name'] + '_Final.pth')
-    # torch.save(net.state_dict(), save_folder + 'Final_Retinaface.pth')
+        #print('Epoch:{}/{} || Epochiter: {}/{} || Iter: {}/{} || Loc: {:.4f} Cla: {:.4f} Landm: {:.4f} || LR: {:.8f} || Batchtime: {:.4f} s || ETA: {}'
+        #      .format(epoch, max_epoch, (iteration % epoch_size) + 1,
+        #      epoch_size, iteration + 1, max_iter, loss_l.item(), loss_c.item(), loss_landm.item(), lr, batch_time, str(datetime.timedelta(seconds=eta))))
+        info = f'\r7Epoch:{epoch}/{max_epoch} || '
+        info += f'Epochiter: {(iteration % epoch_size) + 1}/{epoch_size} || '
+        info += f'Iter: {iteration + 1}/{max_iter} || '
+        info += f'Loc: {loss_l.item():.4f} Cla: {loss_c.item():.4f} Landm: {loss_landm.item():.4f} || '
+        info += f'LR: {lr:.8f} || Batchtime: {batch_time:.4f} s || ETA: {str(datetime.timedelta(seconds=eta))}'
+        sys.stdout.write(info)
+    torch.save(net.state_dict(), save_folder + cfg['name'] + '_optim_' + args.optimizer +'_Final.pth')
 
 
 def adjust_learning_rate(optimizer, gamma, epoch, step_index, iteration, epoch_size):

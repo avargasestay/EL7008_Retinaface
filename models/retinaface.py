@@ -80,15 +80,13 @@ class RetinaFace(nn.Module):
 
         elif cfg['name'] == 'efficientb2':
             import timm
-            backbone = timm.create_model('tf_efficientnet_b2_ns', features_only=True, pretrained=True)
-            self.body = backbone
+            self.body = timm.create_model('tf_efficientnet_b2_ns', features_only=True, pretrained=True)
 
             in_channels_list = [48, 120, 352]
 
         elif cfg['name'] == 'vovnet19b':
             import timm
-            backbone = timm.create_model('ese_vovnet19b_dw', features_only=True, pretrained=True)
-            self.body = backbone
+            self.body = timm.create_model('ese_vovnet19b_dw', features_only=True, pretrained=True)
 
             in_channels_list = [512, 768, 1024]
 

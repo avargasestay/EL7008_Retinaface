@@ -48,13 +48,13 @@ cfg_efb2 = {
     'clip': False,
     'loc_weight': 2.0,
     'gpu_train': True,
-    'batch_size': 2,
+    'batch_size': 1,
     'ngpu': 1,
     'epoch': 200,
-    'decay1': 70,
-    'decay2': 90,
+    #'decay1': 70,
+    #'decay2': 90,
     'image_size': 640,
-    'pretrain': False,
+    #'pretrain': False,
     #'return_layers': {'stage1': 1, 'stage2': 2, 'stage3': 3},
     #'in_channel': 48,
     'out_channel': 256 # porque si (por convencion y por reducir la cantidad de canales de cada stage)
@@ -74,7 +74,7 @@ cfg_vov19 = {
     'decay1': 70,
     'decay2': 90,
     'image_size': 640, # Hans recomienda usar 640 para todas
-    'pretrain': False,
+    #'pretrain': False,
     #'return_layers': {'stage1': 1, 'stage2': 2, 'stage3': 3},
     #'in_channel': 512,
     'out_channel': 256
