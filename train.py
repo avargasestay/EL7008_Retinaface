@@ -6,7 +6,7 @@ import torch.backends.cudnn as cudnn
 from adamp import AdamP, SGDP
 import argparse
 import torch.utils.data as data
-from data import WiderFaceDetection, detection_collate, preproc, cfg_mnet, cfg_re50, cfg_efb2, cfg_vov19
+from data import WiderFaceDetection, detection_collate, preproc, cfg_mnet, cfg_re50, cfg_efb2, cfg_vov39
 from layers.modules import MultiBoxLoss
 from layers.functions.prior_box import PriorBox
 import time
@@ -38,8 +38,8 @@ elif args.network == "resnet50":
     cfg = cfg_re50
 elif args.network == "efficientb2":
     cfg = cfg_efb2
-elif args.network == "vovnet19b":
-    cfg = cfg_vov19
+elif args.network == "vovnet39b":
+    cfg = cfg_vov39
 else:
     print("Invalid network!!")
     raise ValueError

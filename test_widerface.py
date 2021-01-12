@@ -4,7 +4,7 @@ import argparse
 import torch
 import torch.backends.cudnn as cudnn
 import numpy as np
-from data import cfg_mnet, cfg_re50, cfg_efb2, cfg_vov19
+from data import cfg_mnet, cfg_re50, cfg_efb2, cfg_vov39
 from layers.functions.prior_box import PriorBox
 from utils.nms.py_cpu_nms import py_cpu_nms
 import cv2
@@ -78,8 +78,8 @@ if __name__ == '__main__':
         cfg = cfg_re50
     elif args.network == "efficientb2":
         cfg = cfg_efb2
-    elif args.network == "vovnet19b":
-        cfg = cfg_vov19
+    elif args.network == "vovnet39b":
+        cfg = cfg_vov39
     else:
         print("Invalid network!!")
         raise ValueError

@@ -60,8 +60,8 @@ cfg_efb2 = {
     'out_channel': 256 # porque si (por convencion y por reducir la cantidad de canales de cada stage)
 }
 
-cfg_vov19 = {
-    'name': 'vovnet19b',
+cfg_vov39 = {
+    'name': 'vovnet39b',
     'min_sizes': [[16, 32], [64, 128], [256, 512]],
     'steps': [8, 16, 32],
     'variance': [0.1, 0.2],

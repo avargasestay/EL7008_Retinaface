@@ -84,9 +84,9 @@ class RetinaFace(nn.Module):
 
             in_channels_list = [48, 120, 352]
 
-        elif cfg['name'] == 'vovnet19b':
+        elif cfg['name'] == 'vovnet39b':
             import timm
-            self.body = timm.create_model('ese_vovnet19b_dw', features_only=True, pretrained=True)
+            self.body = timm.create_model('ese_vovnet39b', features_only=True, pretrained=True)
 
             in_channels_list = [512, 768, 1024]
 
