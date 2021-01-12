@@ -20,7 +20,7 @@ parser.add_argument('--network', default='efficientb2', help='Backbone network m
 parser.add_argument('--num_workers', default=4, type=int, help='Number of workers used in dataloading')
 parser.add_argument('--lr', '--learning-rate', default=1e-3, type=float, help='initial learning rate')
 parser.add_argument('--momentum', default=0.9, type=float, help='momentum')
-parser.add_argument('--resume_net', default=None, help='resume net for retraining')
+parser.add_argument('--resume_net', default=False, help='resume net for retraining')
 parser.add_argument('--resume_epoch', default=0, type=int, help='resume iter for retraining')
 parser.add_argument('--weight_decay', default=5e-4, type=float, help='Weight decay for SGD')
 parser.add_argument('--gamma', default=0.1, type=float, help='Gamma update for SGD')
@@ -69,9 +69,11 @@ else:
 #print("Printing net...")
 #print(net)
 
-if args.resume_net is not None:
+#if args.resume_net is not None:
+if args.resume_net:
     print('Loading resume network...')
-    state_dict = torch.load(args.resume_net)
+    #state_dict = torch.load(args.resume_net)
+    state_dict = torch.load(save_folder + cfg['name']+ '_optim_'+ args.optimizer +'_epoch_' + str(args.resume_epoch-1) + '.pth')
     # create new OrderedDict that does not contain `module.`
     from collections import OrderedDict
     new_state_dict = OrderedDict()
@@ -94,12 +96,12 @@ cudnn.benchmark = True
 
 if args.optimizer == 'sgd':
     optimizer = optim.SGD(net.parameters(), lr=initial_lr, momentum=momentum, weight_decay=weight_decay)
-    scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, max_epoch)
+    scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, max_epoch, last_epoch=args.resume_epoch-1)
 elif args.optimizer == 'sgdp':
     optimizer = SGDP(net.parameters(), lr=initial_lr, momentum=momentum, weight_decay=weight_decay)
     scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, max_epoch)
 elif args.optimizer == 'adamp':
-    optimizer = AdamP(net.parameters(), lr=initial_lr, weight_decay=weight_decay)
+    optimizer = AdamP(net.parameters(), lr=initial_lr, weight_decay=weight_decay, last_epoch=args.resume_epoch-1)
     scheduler = None
 else:
     print("Invalid optimizer!!")
