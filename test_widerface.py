@@ -30,6 +30,11 @@ parser.add_argument('-s', '--save_image', action="store_true", default=True, hel
 parser.add_argument('--vis_thres', default=0.5, type=float, help='visualization_threshold')
 args = parser.parse_args()
 
+def transform(h, w):
+    img_h_new, img_w_new = int(np.ceil(h / 32) * 32), int(np.ceil(w / 32) * 32)
+    scale_h, scale_w = img_h_new / h, img_w_new / w
+    return img_h_new, img_w_new, scale_h, scale_w
+
 
 def check_keys(model, pretrained_state_dict):
     ckpt_keys = set(pretrained_state_dict.keys())
@@ -108,23 +113,30 @@ if __name__ == '__main__':
     for i, img_name in enumerate(test_dataset):
         image_path = testset_folder + img_name
         img_raw = cv2.imread(image_path, cv2.IMREAD_COLOR)
-        img = np.float32(img_raw)
+
+        h, w, sh, sw = transform(img_raw.shape[0], img_raw.shape[1])  # se agrega esta linea para escalar
+        # img = np.float32(img_raw)
 
         # testing scale
-        target_size = 1600
+        target_size = 320  # 1600
         max_size = 2150
-        im_shape = img.shape
-        im_size_min = np.min(im_shape[0:2])
-        im_size_max = np.max(im_shape[0:2])
-        resize = float(target_size) / float(im_size_min)
+        # im_shape = img.shape
+        # im_size_min = np.min(im_shape[0:2])
+        # im_size_max = np.max(im_shape[0:2])
+        # resize = float(target_size) / float(im_size_min)
         # prevent bigger axis from being more than max_size:
-        if np.round(resize * im_size_max) > max_size:
-            resize = float(max_size) / float(im_size_max)
-        if args.origin_size:
-            resize = 1
+        # if np.round(resize * im_size_max) > max_size:
+        #    resize = float(max_size) / float(im_size_max)
+        # if args.origin_size:
+        #    resize = 1
 
-        if resize != 1:
-            img = cv2.resize(img, None, None, fx=resize, fy=resize, interpolation=cv2.INTER_LINEAR)
+        # if resize != 1:
+        #    img = cv2.resize(img, None, None, fx=resize, fy=resize, interpolation=cv2.INTER_LINEAR)
+
+        resize = sh
+        img = cv2.resize(img_raw, None, None, fx=sw, fy=sh, interpolation=cv2.INTER_LINEAR)
+        img = np.float32(img)
+
         im_height, im_width, _ = img.shape
         scale = torch.Tensor([img.shape[1], img.shape[0], img.shape[1], img.shape[0]])
         img -= (104, 117, 123)
@@ -142,7 +154,11 @@ if __name__ == '__main__':
         priors = priors.to(device)
         prior_data = priors.data
         boxes = decode(loc.data.squeeze(0), prior_data, cfg['variance'])
-        boxes = boxes * scale / resize
+
+        boxes[:, 0:4:2], boxes[:, 1:4:2] = boxes[:, 0:4:2] / sw, boxes[:, 1:4:2] / sh
+        boxes = boxes * scale
+
+        #boxes = boxes * scale / resize
         boxes = boxes.cpu().numpy()
         scores = conf.squeeze(0).data.cpu().numpy()[:, 1]
         landms = decode_landm(landms.data.squeeze(0), prior_data, cfg['variance'])
